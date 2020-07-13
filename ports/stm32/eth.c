@@ -30,6 +30,7 @@
 #include "lib/netutils/netutils.h"
 #include "pin_static_af.h"
 #include "modnetwork.h"
+#include "mpu.h"
 #include "eth.h"
 
 #if defined(MICROPY_HW_ETH_MDC)
@@ -141,35 +142,6 @@ STATIC uint32_t eth_phy_read(uint32_t reg) {
     return ETH->MACMIIDR;
 }
 
-STATIC void mpu_config(uint32_t region, uint32_t base_addr, uint32_t size) {
-    __DMB();
-
-    // Disable MPU
-    SCB->SHCSR &= ~SCB_SHCSR_MEMFAULTENA_Msk;
-    MPU->CTRL = 0;
-
-    // Config MPU region
-    MPU->RNR = region;
-    MPU->RBAR = base_addr;
-    MPU->RASR =
-        MPU_INSTRUCTION_ACCESS_DISABLE  << MPU_RASR_XN_Pos
-        | MPU_REGION_FULL_ACCESS        << MPU_RASR_AP_Pos
-        | MPU_TEX_LEVEL1                << MPU_RASR_TEX_Pos
-        | MPU_ACCESS_SHAREABLE          << MPU_RASR_S_Pos
-        | MPU_ACCESS_NOT_CACHEABLE      << MPU_RASR_C_Pos
-        | MPU_ACCESS_NOT_BUFFERABLE     << MPU_RASR_B_Pos
-        | 0x00                          << MPU_RASR_SRD_Pos
-        | size                          << MPU_RASR_SIZE_Pos
-        | MPU_REGION_ENABLE             << MPU_RASR_ENABLE_Pos;
-
-    // Enable MPU
-    MPU->CTRL = MPU_PRIVILEGED_DEFAULT | MPU_CTRL_ENABLE_Msk;
-    SCB->SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk;
-
-    __DSB();
-    __ISB();
-}
-
 void eth_init(eth_t *self, int mac_idx) {
     mp_hal_get_mac(mac_idx, &self->netif.hwaddr[0]);
     self->netif.hwaddr_len = 6;
@@ -181,7 +153,9 @@ void eth_set_trace(eth_t *self, uint32_t value) {
 
 STATIC int eth_mac_init(eth_t *self) {
     // Configure MPU
-    mpu_config(MPU_REGION_NUMBER0, (uint32_t)&eth_dma, MPU_REGION_SIZE_16KB);
+    uint32_t irq_state = mpu_config_start();
+    mpu_config_region(MPU_REGION_ETH, (uint32_t)&eth_dma, MPU_CONFIG_ETH(MPU_REGION_SIZE_16KB));
+    mpu_config_end(irq_state);
 
     // Configure GPIO
     mp_hal_pin_config_alt_static(MICROPY_HW_ETH_MDC, MP_HAL_PIN_MODE_ALT, MP_HAL_PIN_PULL_NONE, STATIC_AF_ETH_MDC);
@@ -282,15 +256,15 @@ STATIC int eth_mac_init(eth_t *self) {
     ETH->DMAIER =
         ETH_DMAIER_NISE // enable normal interrupts
         | ETH_DMAIER_RIE // enable RX interrupt
-        ;
+    ;
 
     // Configure RX descriptor lists
     for (size_t i = 0; i < RX_BUF_NUM; ++i) {
         eth_dma.rx_descr[i].rdes0 = 1 << RX_DESCR_0_OWN_Pos;
         eth_dma.rx_descr[i].rdes1 =
             1 << RX_DESCR_1_RCH_Pos // chained
-            | RX_BUF_SIZE << RX_DESCR_1_RBS1_Pos
-            ;
+                | RX_BUF_SIZE << RX_DESCR_1_RBS1_Pos
+        ;
         eth_dma.rx_descr[i].rdes2 = (uint32_t)&eth_dma.rx_buf[i * RX_BUF_SIZE];
         eth_dma.rx_descr[i].rdes3 = (uint32_t)&eth_dma.rx_descr[(i + 1) % RX_BUF_NUM];
     }
@@ -311,13 +285,13 @@ STATIC int eth_mac_init(eth_t *self) {
     ETH->DMAOMR =
         ETH_DMAOMR_RSF // read from RX FIFO after a full frame is written
         | ETH_DMAOMR_TSF // transmit when a full frame is in TX FIFO (needed by errata)
-        ;
+    ;
     mp_hal_delay_ms(2);
 
     // Select MAC filtering options
     ETH->MACFFR =
         ETH_MACFFR_RA // pass all frames up
-        ;
+    ;
     mp_hal_delay_ms(2);
 
     // Set MAC address
@@ -333,21 +307,21 @@ STATIC int eth_mac_init(eth_t *self) {
         : (phy_scsr & PHY_SCSR_SPEED_Msk) == PHY_SCSR_SPEED_100HALF ? ETH_MACCR_FES
         : (phy_scsr & PHY_SCSR_SPEED_Msk) == PHY_SCSR_SPEED_100FULL ? (ETH_MACCR_FES | ETH_MACCR_DM)
         : 0
-        ;
+    ;
     mp_hal_delay_ms(2);
 
     // Start MAC layer
     ETH->MACCR |=
         ETH_MACCR_TE // enable TX
         | ETH_MACCR_RE // enable RX
-        ;
+    ;
     mp_hal_delay_ms(2);
 
     // Start DMA layer
     ETH->DMAOMR |=
         ETH_DMAOMR_ST // start TX
         | ETH_DMAOMR_SR // start RX
-        ;
+    ;
     mp_hal_delay_ms(2);
 
     // Enable interrupts
@@ -399,11 +373,11 @@ STATIC int eth_tx_buf_send(void) {
     // Schedule to send next outgoing frame
     tx_descr->tdes0 =
         1 << TX_DESCR_0_OWN_Pos     // owned by DMA
-        | 1 << TX_DESCR_0_LS_Pos    // last segment
-        | 1 << TX_DESCR_0_FS_Pos    // first segment
-        | 3 << TX_DESCR_0_CIC_Pos   // enable all checksums inserted by hardware
-        | 1 << TX_DESCR_0_TCH_Pos   // TX descriptor is chained
-        ;
+            | 1 << TX_DESCR_0_LS_Pos // last segment
+            | 1 << TX_DESCR_0_FS_Pos // first segment
+            | 3 << TX_DESCR_0_CIC_Pos // enable all checksums inserted by hardware
+            | 1 << TX_DESCR_0_TCH_Pos // TX descriptor is chained
+    ;
 
     // Notify ETH DMA that there is a new TX descriptor for sending
     __DMB();
@@ -424,8 +398,8 @@ STATIC void eth_dma_rx_free(void) {
     // Schedule to get next incoming frame
     rx_descr->rdes1 =
         1 << RX_DESCR_1_RCH_Pos                 // RX descriptor is chained
-        | RX_BUF_SIZE << RX_DESCR_1_RBS1_Pos    // maximum buffer length
-        ;
+            | RX_BUF_SIZE << RX_DESCR_1_RBS1_Pos // maximum buffer length
+    ;
     rx_descr->rdes2 = (uint32_t)buf;
     rx_descr->rdes3 = (uint32_t)&eth_dma.rx_descr[eth_dma.rx_descr_idx];
     rx_descr->rdes0 = 1 << RX_DESCR_0_OWN_Pos;  // owned by DMA
@@ -450,7 +424,7 @@ void ETH_IRQHandler(void) {
             // Get RX buffer containing new frame
             size_t len = (rx_descr->rdes0 & RX_DESCR_0_FL_Msk) >> RX_DESCR_0_FL_Pos;
             len -= 4; // discard CRC at end
-            uint8_t *buf = (uint8_t*)rx_descr->rdes2;
+            uint8_t *buf = (uint8_t *)rx_descr->rdes2;
 
             // Process frame
             eth_process_frame(&eth_instance, len, buf);

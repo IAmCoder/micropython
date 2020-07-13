@@ -39,7 +39,7 @@ Common network adapter interface
 ================================
 
 This section describes an (implied) abstract base class for all network
-interface classes implemented by `MicroPython ports <MicroPython port>`
+interface classes implemented by :term:`MicroPython ports <MicroPython port>`
 for different hardware. This means that MicroPython does not actually
 provide ``AbstractNIC`` class, but any actual NIC class, as described
 in the following sections, implements methods as described here.
@@ -68,7 +68,7 @@ parameter should be `id`.
        (password) required to access said service. There can be further
        arbitrary keyword-only parameters, depending on the networking medium
        type and/or particular device. Parameters can be used to: a)
-       specify alternative service identifer types; b) provide additional
+       specify alternative service identifier types; b) provide additional
        connection parameters. For various medium types, there are different
        sets of predefined/recommended parameters, among them:
 

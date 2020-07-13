@@ -39,20 +39,18 @@
 #define MICROPY_PY_MACHINE_I2C      (1)
 #define MICROPY_PY_MACHINE_ADC      (1)
 #define MICROPY_PY_MACHINE_TEMP     (1)
-#define MICROPY_PY_RANDOM_HW_RNG    (1)
+
+#define MICROPY_HW_ENABLE_RNG       (1)
 
 #define MICROPY_HW_HAS_LED          (1)
 #define MICROPY_HW_LED_COUNT        (4)
 #define MICROPY_HW_LED_PULLUP       (1)
 
 #define MICROPY_HW_LED1             (30) // LED1
-#define MICROPY_HW_LED1_LEVEL		(0)
+#define MICROPY_HW_LED1_PULLUP      (0)
 #define MICROPY_HW_LED2             (20) // LED2
-#define MICROPY_HW_LED2_LEVEL		(1)
 #define MICROPY_HW_LED3             (19) // LED3
-#define MICROPY_HW_LED3_LEVEL		(1)
 #define MICROPY_HW_LED4             (18) // LED4
-#define MICROPY_HW_LED4_LEVEL		(1)
 
 // UART config
 #define MICROPY_HW_UART1_RX         (8)

@@ -84,13 +84,14 @@
 
 // TODO Add python method to change callback object.
 
+#if defined(STM32F4) || defined(STM32L4)
+// These MCUs have bitband support so define macros to atomically set/clear bits in IMR/EMR and SWIER
 #define EXTI_OFFSET (EXTI_BASE - PERIPH_BASE)
-
-// Macro used to set/clear the bit corresponding to the line in the IMR/EMR
-// register in an atomic fashion by using bitband addressing.
 #define EXTI_MODE_BB(mode, line) (*(__IO uint32_t *)(PERIPH_BB_BASE + ((EXTI_OFFSET + (mode)) * 32) + ((line) * 4)))
+#define EXTI_SWIER_BB(line) (*(__IO uint32_t *)(PERIPH_BB_BASE + ((EXTI_OFFSET + offsetof(EXTI_TypeDef, SWIER)) * 32) + ((line) * 4)))
+#endif
 
-#if defined(STM32L4)
+#if defined(STM32L4) || defined(STM32WB)
 // The L4 MCU supports 40 Events/IRQs lines of the type configurable and direct.
 // Here we only support configurable line types.  Details, see page 330 of RM0351, Rev 1.
 // The USB_FS_WAKUP event is a direct type and there is no support for it.
@@ -116,8 +117,6 @@
 #define EXTI_FTSR EXTI->FTSR
 #endif
 
-#define EXTI_SWIER_BB(line) (*(__IO uint32_t *)(PERIPH_BB_BASE + ((EXTI_OFFSET + offsetof(EXTI_TypeDef, SWIER)) * 32) + ((line) * 4)))
-
 typedef struct {
     mp_obj_base_t base;
     mp_int_t line;
@@ -140,23 +139,41 @@ STATIC mp_obj_t pyb_extint_callback_arg[EXTI_NUM_VECTORS];
 #endif
 
 STATIC const uint8_t nvic_irq_channel[EXTI_NUM_VECTORS] = {
-    #if defined(STM32F0)
+    #if defined(STM32F0) || defined(STM32L0)
+
     EXTI0_1_IRQn,  EXTI0_1_IRQn,  EXTI2_3_IRQn,  EXTI2_3_IRQn,
     EXTI4_15_IRQn, EXTI4_15_IRQn, EXTI4_15_IRQn, EXTI4_15_IRQn,
     EXTI4_15_IRQn, EXTI4_15_IRQn, EXTI4_15_IRQn, EXTI4_15_IRQn,
     EXTI4_15_IRQn, EXTI4_15_IRQn, EXTI4_15_IRQn, EXTI4_15_IRQn,
+    #if defined(STM32L0)
+    PVD_IRQn,
+    #else
     PVD_VDDIO2_IRQn,
+    #endif
     RTC_IRQn,
     0, // internal USB wakeup event
     RTC_IRQn,
     RTC_IRQn,
     ADC1_COMP_IRQn,
     ADC1_COMP_IRQn,
+
     #else
+
     EXTI0_IRQn,     EXTI1_IRQn,     EXTI2_IRQn,     EXTI3_IRQn,     EXTI4_IRQn,
     EXTI9_5_IRQn,   EXTI9_5_IRQn,   EXTI9_5_IRQn,   EXTI9_5_IRQn,   EXTI9_5_IRQn,
     EXTI15_10_IRQn, EXTI15_10_IRQn, EXTI15_10_IRQn, EXTI15_10_IRQn, EXTI15_10_IRQn,
     EXTI15_10_IRQn,
+    #if defined(STM32H7)
+    PVD_AVD_IRQn,
+    RTC_Alarm_IRQn,
+    TAMP_STAMP_IRQn,
+    RTC_WKUP_IRQn,
+    #elif defined(STM32WB)
+    PVD_PVM_IRQn,
+    RTC_Alarm_IRQn,
+    TAMP_STAMP_LSECSS_IRQn,
+    RTC_WKUP_IRQn,
+    #else
     #if defined(STM32L4)
     PVD_PVM_IRQn,
     #else
@@ -174,6 +191,8 @@ STATIC const uint8_t nvic_irq_channel[EXTI_NUM_VECTORS] = {
     TAMP_STAMP_IRQn,
     RTC_WKUP_IRQn,
     #endif
+
+    #endif
 };
 
 // Set override_callback_obj to true if you want to unconditionally set the
@@ -188,10 +207,10 @@ uint extint_register(mp_obj_t pin_obj, uint32_t mode, uint32_t pull, mp_obj_t ca
         // get both the port number and line number.
         v_line = mp_obj_get_int(pin_obj);
         if (v_line < 16) {
-            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "ExtInt vector %d < 16, use a Pin object", v_line));
+            mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("ExtInt vector %d < 16, use a Pin object"), v_line);
         }
         if (v_line >= EXTI_NUM_VECTORS) {
-            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "ExtInt vector %d >= max of %d", v_line, EXTI_NUM_VECTORS));
+            mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("ExtInt vector %d >= max of %d"), v_line, EXTI_NUM_VECTORS);
         }
     } else {
         pin = pin_find(pin_obj);
@@ -203,17 +222,17 @@ uint extint_register(mp_obj_t pin_obj, uint32_t mode, uint32_t pull, mp_obj_t ca
         mode != GPIO_MODE_EVT_RISING &&
         mode != GPIO_MODE_EVT_FALLING &&
         mode != GPIO_MODE_EVT_RISING_FALLING) {
-        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "invalid ExtInt Mode: %d", mode));
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("invalid ExtInt Mode: %d"), mode);
     }
     if (pull != GPIO_NOPULL &&
         pull != GPIO_PULLUP &&
         pull != GPIO_PULLDOWN) {
-        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "invalid ExtInt Pull: %d", pull));
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("invalid ExtInt Pull: %d"), pull);
     }
 
     mp_obj_t *cb = &MP_STATE_PORT(pyb_extint_callback)[v_line];
     if (!override_callback_obj && *cb != mp_const_none && callback_obj != mp_const_none) {
-        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "ExtInt vector %d is already in use", v_line));
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("ExtInt vector %d is already in use"), v_line);
     }
 
     // We need to update callback atomically, so we disable the line
@@ -260,12 +279,11 @@ void extint_register_pin(const pin_obj_t *pin, uint32_t mode, bool hard_irq, mp_
     mp_obj_t *cb = &MP_STATE_PORT(pyb_extint_callback)[line];
     if (*cb != mp_const_none && MP_OBJ_FROM_PTR(pin) != pyb_extint_callback_arg[line]) {
         if (mp_obj_is_small_int(pyb_extint_callback_arg[line])) {
-            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_OSError,
-                "ExtInt vector %d is already in use", line));
+            mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("ExtInt vector %d is already in use"), line);
         } else {
             const pin_obj_t *other_pin = MP_OBJ_TO_PTR(pyb_extint_callback_arg[line]);
-            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_OSError,
-                "IRQ resource already taken by Pin('%q')", other_pin->name));
+            mp_raise_msg_varg(&mp_type_OSError,
+                MP_ERROR_TEXT("IRQ resource already taken by Pin('%q')"), other_pin->name);
         }
     }
 
@@ -282,7 +300,9 @@ void extint_register_pin(const pin_obj_t *pin, uint32_t mode, bool hard_irq, mp_
         pyb_extint_callback_arg[line] = MP_OBJ_FROM_PTR(pin);
 
         // Route the GPIO to EXTI
+        #if !defined(STM32WB)
         __HAL_RCC_SYSCFG_CLK_ENABLE();
+        #endif
         SYSCFG->EXTICR[line >> 2] =
             (SYSCFG->EXTICR[line >> 2] & ~(0x0f << (4 * (line & 0x03))))
             | ((uint32_t)(GPIO_GET_INDEX(pin->gpio)) << (4 * (line & 0x03)));
@@ -317,7 +337,9 @@ void extint_set(const pin_obj_t *pin, uint32_t mode) {
         pyb_extint_callback_arg[line] = MP_OBJ_FROM_PTR(pin);
 
         // Route the GPIO to EXTI
+        #if !defined(STM32WB)
         __HAL_RCC_SYSCFG_CLK_ENABLE();
+        #endif
         SYSCFG->EXTICR[line >> 2] =
             (SYSCFG->EXTICR[line >> 2] & ~(0x0f << (4 * (line & 0x03))))
             | ((uint32_t)(GPIO_GET_INDEX(pin->gpio)) << (4 * (line & 0x03)));
@@ -349,18 +371,22 @@ void extint_enable(uint line) {
     if (line >= EXTI_NUM_VECTORS) {
         return;
     }
-    #if defined(STM32F0) || defined(STM32F7) || defined(STM32H7)
-    // The Cortex-M7 doesn't have bitband support.
+    #if !defined(EXTI_MODE_BB)
+    // This MCU doesn't have bitband support.
     mp_uint_t irq_state = disable_irq();
     if (pyb_extint_mode[line] == EXTI_Mode_Interrupt) {
         #if defined(STM32H7)
         EXTI_D1->IMR1 |= (1 << line);
+        #elif defined(STM32WB)
+        EXTI->IMR1 |= (1 << line);
         #else
         EXTI->IMR |= (1 << line);
         #endif
     } else {
         #if defined(STM32H7)
         EXTI_D1->EMR1 |= (1 << line);
+        #elif defined(STM32WB)
+        EXTI->EMR1 |= (1 << line);
         #else
         EXTI->EMR |= (1 << line);
         #endif
@@ -379,12 +405,15 @@ void extint_disable(uint line) {
         return;
     }
 
-    #if defined(STM32F0) || defined(STM32F7) || defined(STM32H7)
-    // The Cortex-M7 doesn't have bitband support.
+    #if !defined(EXTI_MODE_BB)
+    // This MCU doesn't have bitband support.
     mp_uint_t irq_state = disable_irq();
     #if defined(STM32H7)
     EXTI_D1->IMR1 &= ~(1 << line);
     EXTI_D1->EMR1 &= ~(1 << line);
+    #elif defined(STM32WB)
+    EXTI->IMR1 &= ~(1 << line);
+    EXTI->EMR1 &= ~(1 << line);
     #else
     EXTI->IMR &= ~(1 << line);
     EXTI->EMR &= ~(1 << line);
@@ -404,21 +433,21 @@ void extint_swint(uint line) {
         return;
     }
     // we need 0 to 1 transition to trigger the interrupt
-#if defined(STM32L4) || defined(STM32H7)
+    #if defined(STM32L4) || defined(STM32H7) || defined(STM32WB)
     EXTI->SWIER1 &= ~(1 << line);
     EXTI->SWIER1 |= (1 << line);
-#else
+    #else
     EXTI->SWIER &= ~(1 << line);
     EXTI->SWIER |= (1 << line);
-#endif
+    #endif
 }
 
 void extint_trigger_mode(uint line, uint32_t mode) {
     if (line >= EXTI_NUM_VECTORS) {
         return;
     }
-    #if defined(STM32F0) || defined(STM32F7) || defined(STM32H7)
-    // The Cortex-M7 doesn't have bitband support.
+    #if !defined(EXTI_MODE_BB)
+    // This MCU doesn't have bitband support.
     mp_uint_t irq_state = disable_irq();
     // Enable or disable the rising detector
     if ((mode & GPIO_MODE_IT_RISING) == GPIO_MODE_IT_RISING) {
@@ -482,7 +511,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(extint_obj_swint_obj,  extint_obj_swint);
 /// \classmethod regs()
 /// Dump the values of the EXTI registers.
 STATIC mp_obj_t extint_regs(void) {
-    #if defined(STM32L4)
+    #if defined(STM32L4) || defined(STM32WB)
     printf("EXTI_IMR1   %08x\n", (unsigned int)EXTI->IMR1);
     printf("EXTI_IMR2   %08x\n", (unsigned int)EXTI->IMR2);
     printf("EXTI_EMR1   %08x\n", (unsigned int)EXTI->EMR1);
@@ -595,7 +624,7 @@ const mp_obj_type_t extint_type = {
     .name = MP_QSTR_ExtInt,
     .print = extint_obj_print,
     .make_new = extint_make_new,
-    .locals_dict = (mp_obj_dict_t*)&extint_locals_dict,
+    .locals_dict = (mp_obj_dict_t *)&extint_locals_dict,
 };
 
 void extint_init0(void) {
@@ -605,7 +634,7 @@ void extint_init0(void) {
         }
         MP_STATE_PORT(pyb_extint_callback)[i] = mp_const_none;
         pyb_extint_mode[i] = EXTI_Mode_Interrupt;
-   }
+    }
 }
 
 // Interrupt handler
@@ -642,7 +671,7 @@ void Handle_EXTI_Irq(uint32_t line) {
                     // Uncaught exception; disable the callback so it doesn't run again.
                     *cb = mp_const_none;
                     extint_disable(line);
-                    printf("Uncaught exception in ExtInt interrupt handler line %u\n", (unsigned int)line);
+                    mp_printf(MICROPY_ERROR_PRINTER, "uncaught exception in ExtInt interrupt handler line %u\n", (unsigned int)line);
                     mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(nlr.ret_val));
                 }
                 gc_unlock();
