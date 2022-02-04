@@ -32,7 +32,6 @@
 
 #include "py/runtime.h"
 #include "ble_drv.h"
-#include "mpconfigport.h"
 #include "nrf_sdm.h"
 #include "ble_gap.h"
 #include "ble.h" // sd_ble_uuid_encode
@@ -930,7 +929,7 @@ void ble_drv_discover_descriptors(void) {
 
 static void sd_evt_handler(uint32_t evt_id) {
     switch (evt_id) {
-#if MICROPY_MBFS
+#if MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE || MICROPY_MBFS
         case NRF_EVT_FLASH_OPERATION_SUCCESS:
             flash_operation_finished(FLASH_STATE_SUCCESS);
             break;

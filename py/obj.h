@@ -104,8 +104,18 @@ static inline bool mp_obj_is_immediate_obj(mp_const_obj_t o) {
 #if MICROPY_PY_BUILTINS_FLOAT
 #define mp_const_float_e MP_ROM_PTR(&mp_const_float_e_obj)
 #define mp_const_float_pi MP_ROM_PTR(&mp_const_float_pi_obj)
+#if MICROPY_PY_MATH_CONSTANTS
+#define mp_const_float_tau MP_ROM_PTR(&mp_const_float_tau_obj)
+#define mp_const_float_inf MP_ROM_PTR(&mp_const_float_inf_obj)
+#define mp_const_float_nan MP_ROM_PTR(&mp_const_float_nan_obj)
+#endif
 extern const struct _mp_obj_float_t mp_const_float_e_obj;
 extern const struct _mp_obj_float_t mp_const_float_pi_obj;
+#if MICROPY_PY_MATH_CONSTANTS
+extern const struct _mp_obj_float_t mp_const_float_tau_obj;
+extern const struct _mp_obj_float_t mp_const_float_inf_obj;
+extern const struct _mp_obj_float_t mp_const_float_nan_obj;
+#endif
 
 #define mp_obj_is_float(o) mp_obj_is_type((o), &mp_type_float)
 mp_float_t mp_obj_float_get(mp_obj_t self_in);
@@ -139,8 +149,18 @@ static inline bool mp_obj_is_immediate_obj(mp_const_obj_t o) {
 #if MICROPY_PY_BUILTINS_FLOAT
 #define mp_const_float_e MP_ROM_PTR(&mp_const_float_e_obj)
 #define mp_const_float_pi MP_ROM_PTR(&mp_const_float_pi_obj)
+#if MICROPY_PY_MATH_CONSTANTS
+#define mp_const_float_tau MP_ROM_PTR(&mp_const_float_tau_obj)
+#define mp_const_float_inf MP_ROM_PTR(&mp_const_float_inf_obj)
+#define mp_const_float_nan MP_ROM_PTR(&mp_const_float_nan_obj)
+#endif
 extern const struct _mp_obj_float_t mp_const_float_e_obj;
 extern const struct _mp_obj_float_t mp_const_float_pi_obj;
+#if MICROPY_PY_MATH_CONSTANTS
+extern const struct _mp_obj_float_t mp_const_float_tau_obj;
+extern const struct _mp_obj_float_t mp_const_float_inf_obj;
+extern const struct _mp_obj_float_t mp_const_float_nan_obj;
+#endif
 
 #define mp_obj_is_float(o) mp_obj_is_type((o), &mp_type_float)
 mp_float_t mp_obj_float_get(mp_obj_t self_in);
@@ -162,6 +182,11 @@ static inline bool mp_obj_is_small_int(mp_const_obj_t o) {
 #if MICROPY_PY_BUILTINS_FLOAT
 #define mp_const_float_e MP_ROM_PTR((mp_obj_t)(((0x402df854 & ~3) | 2) + 0x80800000))
 #define mp_const_float_pi MP_ROM_PTR((mp_obj_t)(((0x40490fdb & ~3) | 2) + 0x80800000))
+#if MICROPY_PY_MATH_CONSTANTS
+#define mp_const_float_tau MP_ROM_PTR((mp_obj_t)(((0x40c90fdb & ~3) | 2) + 0x80800000))
+#define mp_const_float_inf MP_ROM_PTR((mp_obj_t)(((0x7f800000 & ~3) | 2) + 0x80800000))
+#define mp_const_float_nan MP_ROM_PTR((mp_obj_t)(((0xffc00000 & ~3) | 2) + 0x80800000))
+#endif
 
 static inline bool mp_obj_is_float(mp_const_obj_t o) {
     return (((mp_uint_t)(o)) & 3) == 2 && (((mp_uint_t)(o)) & 0xff800007) != 0x00000006;
@@ -226,6 +251,11 @@ static inline bool mp_obj_is_immediate_obj(mp_const_obj_t o) {
 
 #define mp_const_float_e {((mp_obj_t)((uint64_t)0x4005bf0a8b145769 + 0x8004000000000000))}
 #define mp_const_float_pi {((mp_obj_t)((uint64_t)0x400921fb54442d18 + 0x8004000000000000))}
+#if MICROPY_PY_MATH_CONSTANTS
+#define mp_const_float_tau {((mp_obj_t)((uint64_t)0x401921fb54442d18 + 0x8004000000000000))}
+#define mp_const_float_inf {((mp_obj_t)((uint64_t)0x7ff0000000000000 + 0x8004000000000000))}
+#define mp_const_float_nan {((mp_obj_t)((uint64_t)0xfff8000000000000 + 0x8004000000000000))}
+#endif
 
 static inline bool mp_obj_is_float(mp_const_obj_t o) {
     return ((uint64_t)(o) & 0xfffc000000000000) != 0;
@@ -422,8 +452,6 @@ typedef enum _mp_map_lookup_kind_t {
     MP_MAP_LOOKUP_ADD_IF_NOT_FOUND_OR_REMOVE_IF_FOUND = 3, // only valid for mp_set_lookup
 } mp_map_lookup_kind_t;
 
-extern const mp_map_t mp_const_empty_map;
-
 static inline bool mp_map_slot_is_filled(const mp_map_t *map, size_t pos) {
     assert(pos < map->alloc);
     return (map)->table[pos].key != MP_OBJ_NULL && (map)->table[pos].key != MP_OBJ_SENTINEL;
@@ -553,6 +581,7 @@ struct _mp_obj_type_t {
     //
     // dest[0] = MP_OBJ_NULL means load
     //  return: for fail, do nothing
+    //          for fail but continue lookup in locals_dict, dest[1] = MP_OBJ_SENTINEL
     //          for attr, dest[0] = value
     //          for method, dest[0] = method, dest[1] = self
     //
@@ -685,16 +714,21 @@ extern const struct _mp_obj_bool_t mp_const_false_obj;
 extern const struct _mp_obj_bool_t mp_const_true_obj;
 #endif
 
-// Constant objects, globally accessible: b'', (), Ellipsis, NotImplemented, GeneratorExit()
+// Constant objects, globally accessible: b'', (), {}, Ellipsis, NotImplemented, GeneratorExit()
 // The below macros are for convenience only.
 #define mp_const_empty_bytes (MP_OBJ_FROM_PTR(&mp_const_empty_bytes_obj))
 #define mp_const_empty_tuple (MP_OBJ_FROM_PTR(&mp_const_empty_tuple_obj))
 #define mp_const_notimplemented (MP_OBJ_FROM_PTR(&mp_const_notimplemented_obj))
 extern const struct _mp_obj_str_t mp_const_empty_bytes_obj;
 extern const struct _mp_obj_tuple_t mp_const_empty_tuple_obj;
+extern const struct _mp_obj_dict_t mp_const_empty_dict_obj;
 extern const struct _mp_obj_singleton_t mp_const_ellipsis_obj;
 extern const struct _mp_obj_singleton_t mp_const_notimplemented_obj;
 extern const struct _mp_obj_exception_t mp_const_GeneratorExit_obj;
+
+// Fixed empty map. Useful when calling keyword-receiving functions
+// without any keywords from C, etc.
+#define mp_const_empty_map (mp_const_empty_dict_obj.map)
 
 // General API for objects
 
@@ -736,10 +770,14 @@ mp_obj_t mp_obj_new_int_from_float(mp_float_t val);
 mp_obj_t mp_obj_new_complex(mp_float_t real, mp_float_t imag);
 #endif
 mp_obj_t mp_obj_new_exception(const mp_obj_type_t *exc_type);
-mp_obj_t mp_obj_new_exception_arg1(const mp_obj_type_t *exc_type, mp_obj_t arg);
 mp_obj_t mp_obj_new_exception_args(const mp_obj_type_t *exc_type, size_t n_args, const mp_obj_t *args);
+#if MICROPY_ERROR_REPORTING == MICROPY_ERROR_REPORTING_NONE
+#define mp_obj_new_exception_msg(exc_type, msg) mp_obj_new_exception(exc_type)
+#define mp_obj_new_exception_msg_varg(exc_type, ...) mp_obj_new_exception(exc_type)
+#else
 mp_obj_t mp_obj_new_exception_msg(const mp_obj_type_t *exc_type, mp_rom_error_text_t msg);
 mp_obj_t mp_obj_new_exception_msg_varg(const mp_obj_type_t *exc_type, mp_rom_error_text_t fmt, ...); // counts args by number of % symbols in fmt, excluding %%; can only handle void* sizes (ie no float/double!)
+#endif
 #ifdef va_start
 mp_obj_t mp_obj_new_exception_msg_vlist(const mp_obj_type_t *exc_type, mp_rom_error_text_t fmt, va_list arg); // same fmt restrictions as above
 #endif
@@ -772,9 +810,11 @@ bool mp_obj_is_callable(mp_obj_t o_in);
 mp_obj_t mp_obj_equal_not_equal(mp_binary_op_t op, mp_obj_t o1, mp_obj_t o2);
 bool mp_obj_equal(mp_obj_t o1, mp_obj_t o2);
 
+// returns true if o is bool, small int or long int
 static inline bool mp_obj_is_integer(mp_const_obj_t o) {
     return mp_obj_is_int(o) || mp_obj_is_bool(o);
-}                                                                                                        // returns true if o is bool, small int or long int
+}
+
 mp_int_t mp_obj_get_int(mp_const_obj_t arg);
 mp_int_t mp_obj_get_int_truncated(mp_const_obj_t arg);
 bool mp_obj_get_int_maybe(mp_const_obj_t arg, mp_int_t *value);
@@ -817,6 +857,10 @@ mp_obj_t mp_obj_exception_get_value(mp_obj_t self_in);
 mp_obj_t mp_obj_exception_make_new(const mp_obj_type_t *type_in, size_t n_args, size_t n_kw, const mp_obj_t *args);
 mp_obj_t mp_alloc_emergency_exception_buf(mp_obj_t size_in);
 void mp_init_emergency_exception_buf(void);
+static inline mp_obj_t mp_obj_new_exception_arg1(const mp_obj_type_t *exc_type, mp_obj_t arg) {
+    assert(exc_type->make_new == mp_obj_exception_make_new);
+    return mp_obj_exception_make_new(exc_type, 1, 0, &arg);
+}
 
 // str
 bool mp_obj_str_equal(mp_obj_t s1, mp_obj_t s2);
@@ -992,17 +1036,17 @@ bool mp_seq_cmp_objs(mp_uint_t op, const mp_obj_t *items1, size_t len1, const mp
 mp_obj_t mp_seq_index_obj(const mp_obj_t *items, size_t len, size_t n_args, const mp_obj_t *args);
 mp_obj_t mp_seq_count_obj(const mp_obj_t *items, size_t len, mp_obj_t value);
 mp_obj_t mp_seq_extract_slice(size_t len, const mp_obj_t *seq, mp_bound_slice_t *indexes);
+
 // Helper to clear stale pointers from allocated, but unused memory, to preclude GC problems
 #define mp_seq_clear(start, len, alloc_len, item_sz) memset((byte *)(start) + (len) * (item_sz), 0, ((alloc_len) - (len)) * (item_sz))
+
+// Note: dest and slice regions may overlap
 #define mp_seq_replace_slice_no_grow(dest, dest_len, beg, end, slice, slice_len, item_sz) \
-    /*printf("memcpy(%p, %p, %d)\n", dest + beg, slice, slice_len * (item_sz));*/ \
-    memcpy(((char *)dest) + (beg) * (item_sz), slice, slice_len * (item_sz)); \
-    /*printf("memmove(%p, %p, %d)\n", dest + (beg + slice_len), dest + end, (dest_len - end) * (item_sz));*/ \
+    memmove(((char *)dest) + (beg) * (item_sz), slice, slice_len * (item_sz)); \
     memmove(((char *)dest) + (beg + slice_len) * (item_sz), ((char *)dest) + (end) * (item_sz), (dest_len - end) * (item_sz));
 
 // Note: dest and slice regions may overlap
 #define mp_seq_replace_slice_grow_inplace(dest, dest_len, beg, end, slice, slice_len, len_adj, item_sz) \
-    /*printf("memmove(%p, %p, %d)\n", dest + beg + len_adj, dest + beg, (dest_len - beg) * (item_sz));*/ \
     memmove(((char *)dest) + (beg + slice_len) * (item_sz), ((char *)dest) + (end) * (item_sz), ((dest_len) + (len_adj) - ((beg) + (slice_len))) * (item_sz)); \
     memmove(((char *)dest) + (beg) * (item_sz), slice, slice_len * (item_sz));
 

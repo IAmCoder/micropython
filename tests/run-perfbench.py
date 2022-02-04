@@ -33,8 +33,8 @@ def compute_stats(lst):
         avg += x
         var += x * x
     avg /= len(lst)
-    var = max(0, var / len(lst) - avg ** 2)
-    return avg, var ** 0.5
+    var = max(0, var / len(lst) - avg**2)
+    return avg, var**0.5
 
 
 def run_script_on_target(target, script):
@@ -85,7 +85,7 @@ def run_benchmark_on_target(target, script):
 
 def run_benchmarks(target, param_n, param_m, n_average, test_list):
     skip_complex = run_feature_test(target, "complex") != "complex"
-    skip_native = run_feature_test(target, "native_check") != ""
+    skip_native = run_feature_test(target, "native_check") != "native"
 
     for test_file in sorted(test_list):
         print(test_file + ": ", end="")
@@ -201,7 +201,7 @@ def compute_diff(file1, file2, diff_score):
             sd1 *= av1 / 100  # convert from percent sd to absolute sd
             sd2 *= av2 / 100  # convert from percent sd to absolute sd
             av_diff = av2 - av1
-            sd_diff = (sd1 ** 2 + sd2 ** 2) ** 0.5
+            sd_diff = (sd1**2 + sd2**2) ** 0.5
             percent = 100 * av_diff / av1
             percent_sd = 100 * sd_diff / av1
             print(

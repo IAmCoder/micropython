@@ -79,14 +79,20 @@
 #endif
 #define MICROPY_STREAMS_POSIX_API   (1)
 #define MICROPY_OPT_COMPUTED_GOTO   (1)
-#ifndef MICROPY_OPT_CACHE_MAP_LOOKUP_IN_BYTECODE
-#define MICROPY_OPT_CACHE_MAP_LOOKUP_IN_BYTECODE (1)
+#ifndef MICROPY_OPT_LOAD_ATTR_FAST_PATH
+#define MICROPY_OPT_LOAD_ATTR_FAST_PATH (1)
+#endif
+#ifndef MICROPY_OPT_MAP_LOOKUP_CACHE
+#define MICROPY_OPT_MAP_LOOKUP_CACHE (1)
 #endif
 #define MICROPY_MODULE_WEAK_LINKS   (1)
+#define MICROPY_MODULE_OVERRIDE_MAIN_IMPORT (1)
 #define MICROPY_CAN_OVERRIDE_BUILTINS (1)
 #define MICROPY_VFS_POSIX_FILE      (1)
 #define MICROPY_PY_FUNCTION_ATTRS   (1)
 #define MICROPY_PY_DESCRIPTORS      (1)
+#define MICROPY_PY_DELATTR_SETATTR  (1)
+#define MICROPY_PY_FSTRINGS         (1)
 #define MICROPY_PY_BUILTINS_STR_UNICODE (1)
 #define MICROPY_PY_BUILTINS_STR_CENTER (1)
 #define MICROPY_PY_BUILTINS_STR_PARTITION (1)
@@ -104,6 +110,7 @@
 #define MICROPY_PY_ARRAY_SLICE_ASSIGN (1)
 #define MICROPY_PY_BUILTINS_SLICE_ATTRS (1)
 #define MICROPY_PY_BUILTINS_SLICE_INDICES (1)
+#define MICROPY_PY_SYS_PATH_ARGV_DEFAULTS (0)
 #define MICROPY_PY_SYS_EXIT         (1)
 #define MICROPY_PY_SYS_ATEXIT       (1)
 #if MICROPY_PY_SYS_SETTRACE
@@ -116,6 +123,9 @@
 #else
     #define MICROPY_PY_SYS_PLATFORM  "linux"
 #endif
+#endif
+#ifndef MICROPY_PY_SYS_PATH_DEFAULT
+#define MICROPY_PY_SYS_PATH_DEFAULT ".frozen:~/.micropython/lib:/usr/lib/micropython"
 #endif
 #define MICROPY_PY_SYS_MAXSIZE      (1)
 #define MICROPY_PY_SYS_STDFILES     (1)
@@ -176,6 +186,9 @@
 #define MICROPY_ERROR_PRINTER       (&mp_stderr_print)
 #define MICROPY_PY_STR_BYTES_CMP_WARN (1)
 
+// VFS stat functions should return time values relative to 1970/1/1
+#define MICROPY_EPOCH_IS_1970       (1)
+
 extern const struct _mp_print_t mp_stderr_print;
 
 #if !(defined(MICROPY_GCREGS_SETJMP) || defined(__x86_64__) || defined(__i386__) || defined(__thumb2__) || defined(__thumb__) || defined(__arm__))
@@ -191,7 +204,6 @@ extern const struct _mp_print_t mp_stderr_print;
 #define mp_type_fileio mp_type_vfs_posix_fileio
 #define mp_type_textio mp_type_vfs_posix_textio
 
-extern const struct _mp_obj_module_t mp_module_machine;
 extern const struct _mp_obj_module_t mp_module_os;
 extern const struct _mp_obj_module_t mp_module_uos_vfs;
 extern const struct _mp_obj_module_t mp_module_uselect;
@@ -242,7 +254,6 @@ extern const struct _mp_obj_module_t mp_module_jni;
     MICROPY_PY_JNI_DEF \
     MICROPY_PY_UTIME_DEF \
     MICROPY_PY_SOCKET_DEF \
-    { MP_ROM_QSTR(MP_QSTR_umachine), MP_ROM_PTR(&mp_module_machine) }, \
     MICROPY_PY_UOS_DEF \
     MICROPY_PY_USELECT_DEF \
     MICROPY_PY_TERMIOS_DEF \
@@ -306,9 +317,16 @@ void mp_unix_mark_exec(void);
 
 #define MP_STATE_PORT MP_STATE_VM
 
-#if MICROPY_PY_BLUETOOTH && MICROPY_BLUETOOTH_BTSTACK
+#if MICROPY_PY_BLUETOOTH
+#if MICROPY_BLUETOOTH_BTSTACK
 struct _mp_bluetooth_btstack_root_pointers_t;
 #define MICROPY_BLUETOOTH_ROOT_POINTERS struct _mp_bluetooth_btstack_root_pointers_t *bluetooth_btstack_root_pointers;
+#endif
+#if MICROPY_BLUETOOTH_NIMBLE
+struct _mp_bluetooth_nimble_root_pointers_t;
+struct _mp_bluetooth_nimble_malloc_t;
+#define MICROPY_BLUETOOTH_ROOT_POINTERS struct _mp_bluetooth_nimble_malloc_t *bluetooth_nimble_memory; struct _mp_bluetooth_nimble_root_pointers_t *bluetooth_nimble_root_pointers;
+#endif
 #else
 #define MICROPY_BLUETOOTH_ROOT_POINTERS
 #endif
@@ -348,11 +366,16 @@ struct _mp_bluetooth_btstack_root_pointers_t;
 #endif
 
 #if MICROPY_PY_THREAD
-#define MICROPY_BEGIN_ATOMIC_SECTION() (mp_thread_unix_begin_atomic_section(), 0)
+#define MICROPY_BEGIN_ATOMIC_SECTION() (mp_thread_unix_begin_atomic_section(), 0xffffffff)
 #define MICROPY_END_ATOMIC_SECTION(x) (void)x; mp_thread_unix_end_atomic_section()
 #endif
 
-#define MICROPY_EVENT_POLL_HOOK mp_hal_delay_us(500);
+#define MICROPY_EVENT_POLL_HOOK \
+    do { \
+        extern void mp_handle_pending(bool); \
+        mp_handle_pending(true); \
+        mp_hal_delay_us(500); \
+    } while (0);
 
 #include <sched.h>
 #define MICROPY_UNIX_MACHINE_IDLE sched_yield();

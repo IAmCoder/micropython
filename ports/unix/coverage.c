@@ -153,7 +153,7 @@ STATIC void pairheap_test(size_t nops, int *ops) {
         mp_pairheap_init_node(pairheap_lt, &node[i]);
     }
     mp_pairheap_t *heap = mp_pairheap_new(pairheap_lt);
-    printf("create:");
+    mp_printf(&mp_plat_print, "create:");
     for (size_t i = 0; i < nops; ++i) {
         if (ops[i] >= 0) {
             heap = mp_pairheap_push(pairheap_lt, heap, &node[ops[i]]);
@@ -167,13 +167,13 @@ STATIC void pairheap_test(size_t nops, int *ops) {
             ;
         }
     }
-    printf("\npop all:");
+    mp_printf(&mp_plat_print, "\npop all:");
     while (!mp_pairheap_is_empty(pairheap_lt, heap)) {
         mp_printf(&mp_plat_print, " %d", mp_pairheap_peek(pairheap_lt, heap) - &node[0]);
         ;
         heap = mp_pairheap_pop(pairheap_lt, heap);
     }
-    printf("\n");
+    mp_printf(&mp_plat_print, "\n");
 }
 
 // function to run extra tests for things that can't be checked by scripts
@@ -186,7 +186,7 @@ STATIC mp_obj_t extra_coverage(void) {
         mp_printf(&mp_plat_print, "%ld\n", 123); // long
         mp_printf(&mp_plat_print, "%lx\n", 0x123); // long hex
         mp_printf(&mp_plat_print, "%X\n", 0x1abcdef); // capital hex
-        mp_printf(&mp_plat_print, "%.2s %.3s\n", "abc", "abc"); // fixed string precision
+        mp_printf(&mp_plat_print, "%.2s %.3s '%4.4s' '%5.5q' '%.3q'\n", "abc", "abc", "abc", MP_QSTR_True, MP_QSTR_True); // fixed string precision
         mp_printf(&mp_plat_print, "%.*s\n", -1, "abc"); // negative string precision
         mp_printf(&mp_plat_print, "%b %b\n", 0, 1); // bools
         #ifndef NDEBUG
@@ -267,6 +267,13 @@ STATIC mp_obj_t extra_coverage(void) {
         const char *str;
         size_t len = mp_repl_autocomplete("__n", 3, &mp_plat_print, &str);
         mp_printf(&mp_plat_print, "%.*s\n", (int)len, str);
+
+        len = mp_repl_autocomplete("i", 1,  &mp_plat_print, &str);
+        mp_printf(&mp_plat_print, "%.*s\n", (int)len, str);
+        mp_repl_autocomplete("import ", 7,  &mp_plat_print, &str);
+        len = mp_repl_autocomplete("import ut", 9,  &mp_plat_print, &str);
+        mp_printf(&mp_plat_print, "%.*s\n", (int)len, str);
+        mp_repl_autocomplete("import utime", 12,  &mp_plat_print, &str);
 
         mp_store_global(MP_QSTR_sys, mp_import_name(MP_QSTR_sys, mp_const_none, MP_OBJ_NEW_SMALL_INT(0)));
         mp_repl_autocomplete("sys.", 4, &mp_plat_print, &str);
@@ -483,7 +490,7 @@ STATIC mp_obj_t extra_coverage(void) {
         }
 
         // setting the keyboard interrupt and raising it during mp_handle_pending
-        mp_keyboard_interrupt();
+        mp_sched_keyboard_interrupt();
         nlr_buf_t nlr;
         if (nlr_push(&nlr) == 0) {
             mp_handle_pending(true);
@@ -493,13 +500,13 @@ STATIC mp_obj_t extra_coverage(void) {
         }
 
         // setting the keyboard interrupt (twice) and cancelling it during mp_handle_pending
-        mp_keyboard_interrupt();
-        mp_keyboard_interrupt();
+        mp_sched_keyboard_interrupt();
+        mp_sched_keyboard_interrupt();
         mp_handle_pending(false);
 
         // setting keyboard interrupt and a pending event (intr should be handled first)
         mp_sched_schedule(MP_OBJ_FROM_PTR(&mp_builtin_print_obj), MP_OBJ_NEW_SMALL_INT(10));
-        mp_keyboard_interrupt();
+        mp_sched_keyboard_interrupt();
         if (nlr_push(&nlr) == 0) {
             mp_handle_pending(true);
             nlr_pop();
