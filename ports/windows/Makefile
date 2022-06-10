@@ -33,7 +33,7 @@ INC += -I$(VARIANT_DIR)
 
 # compiler settings
 CFLAGS = $(INC) -Wall -Wpointer-arith -Wdouble-promotion -Werror -std=gnu99 -DUNIX -D__USE_MINGW_ANSI_STDIO=1 $(CFLAGS_MOD) $(COPT) $(CFLAGS_EXTRA)
-LDFLAGS = $(LDFLAGS_MOD) -lm $(LDFLAGS_EXTRA)
+LDFLAGS = $(LDFLAGS_MOD) -lm -lbcrypt $(LDFLAGS_EXTRA)
 
 # Debugging/Optimization
 ifdef DEBUG
@@ -49,14 +49,12 @@ SRC_C = \
 	shared/runtime/gchelper_generic.c \
 	ports/unix/main.c \
 	ports/unix/input.c \
-	ports/unix/modos.c \
 	ports/unix/modmachine.c \
 	ports/unix/modtime.c \
 	ports/unix/gccollect.c \
 	windows_mphal.c \
 	realpath.c \
 	init.c \
-	sleep.c \
 	fmode.c \
 	$(SRC_MOD) \
 	$(wildcard $(VARIANT_DIR)/*.c)
@@ -90,6 +88,8 @@ SRC_QSTR_AUTO_DEPS +=
 ifneq ($(FROZEN_MANIFEST),)
 CFLAGS += -DMICROPY_QSTR_EXTRA_POOL=mp_qstr_frozen_const_pool -DMICROPY_MODULE_FROZEN_MPY=1 -DMPZ_DIG_SIZE=16
 endif
+
+CXXFLAGS += $(filter-out -std=gnu99,$(CFLAGS) $(CXXFLAGS_MOD))
 
 include $(TOP)/py/mkrules.mk
 
