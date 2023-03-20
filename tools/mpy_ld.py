@@ -36,6 +36,7 @@ import makeqstrdata as qstrutil
 
 # MicroPython constants
 MPY_VERSION = 6
+MPY_SUB_VERSION = 1
 MP_CODE_BYTECODE = 2
 MP_CODE_NATIVE_VIPER = 4
 MP_NATIVE_ARCH_X86 = 1
@@ -434,6 +435,8 @@ def populate_got(env):
             dest = got_entry.name
         elif got_entry.name.startswith("mp_fun_table+0x"):
             dest = int(got_entry.name.split("+")[1], 16) // env.arch.word_size
+        elif got_entry.sec_name == ".external.mp_fun_table":
+            dest = got_entry.sym.mp_fun_table_offset
         elif got_entry.sec_name.startswith(".text"):
             dest = ".text"
         elif got_entry.sec_name.startswith(".rodata"):
@@ -915,7 +918,11 @@ def build_mpy(env, entry_offset, fmpy, native_qstr_vals, native_qstr_objs):
     out.open(fmpy)
 
     # MPY: header
-    out.write_bytes(bytearray([ord("M"), MPY_VERSION, env.arch.mpy_feature, MP_SMALL_INT_BITS]))
+    out.write_bytes(
+        bytearray(
+            [ord("M"), MPY_VERSION, env.arch.mpy_feature | MPY_SUB_VERSION, MP_SMALL_INT_BITS]
+        )
+    )
 
     # MPY: n_qstr
     out.write_uint(1 + len(native_qstr_vals))

@@ -215,7 +215,9 @@ soft_reset_exit:
     // TODO: machine_rmt_deinit_all();
     machine_pins_deinit();
     machine_deinit();
+    #if MICROPY_PY_USOCKET_EVENTS
     usocket_events_deinit();
+    #endif
 
     mp_deinit();
     fflush(stdout);
@@ -265,3 +267,5 @@ void *esp_native_code_commit(void *buf, size_t len, void *reloc) {
     memcpy(p, buf, len);
     return p;
 }
+
+MP_REGISTER_ROOT_POINTER(mp_obj_t native_code_pointers);
