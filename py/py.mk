@@ -83,6 +83,7 @@ PY_CORE_O_BASENAME = $(addprefix py/,\
 	nlrmips.o \
 	nlrpowerpc.o \
 	nlrxtensa.o \
+	nlrrv32.o \
 	nlrsetjmp.o \
 	malloc.o \
 	gc.o \
@@ -113,6 +114,9 @@ PY_CORE_O_BASENAME = $(addprefix py/,\
 	emitnxtensa.o \
 	emitinlinextensa.o \
 	emitnxtensawin.o \
+	asmrv32.o \
+	emitnrv32.o \
+	emitndebug.o \
 	formatfloat.o \
 	parsenumbase.o \
 	parsenum.o \
@@ -185,7 +189,7 @@ PY_CORE_O_BASENAME = $(addprefix py/,\
 	modmicropython.o \
 	modstruct.o \
 	modsys.o \
-	moduerrno.o \
+	moderrno.o \
 	modthread.o \
 	vm.o \
 	bc.o \
@@ -203,7 +207,7 @@ PY_O += $(PY_CORE_O)
 
 # object file for frozen code specified via a manifest
 ifneq ($(FROZEN_MANIFEST),)
-PY_O += $(BUILD)/$(BUILD)/frozen_content.o
+PY_O += $(BUILD)/frozen_content.o
 endif
 
 # Sources that may contain qstrings
